@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import assert from 'node:assert/strict';
 
 const source = fs.readFileSync(new URL('../PPBJ_Automation.gs', import.meta.url), 'utf8');
 
@@ -21,5 +22,32 @@ for (const required of [
     throw new Error(`Missing empty-text safeguard: ${required}`);
   }
 }
+
+const PropertiesService = {
+  getScriptProperties() {
+    return {getProperty() { return ''; }};
+  },
+};
+const helpers = new Function(
+  'PropertiesService',
+  `${source}\nreturn {docText_, appendSafeTableCell_};`,
+)(PropertiesService);
+
+const calls = [];
+const row = {
+  appendTableCell(...args) {
+    calls.push(args);
+    return {args};
+  },
+};
+
+helpers.appendSafeTableCell_(row, '');
+helpers.appendSafeTableCell_(row, null);
+helpers.appendSafeTableCell_(row, 0);
+helpers.appendSafeTableCell_(row, 'TOTAL');
+
+assert.deepEqual(calls, [[], [], ['0'], ['TOTAL']]);
+assert.equal(helpers.docText_(undefined), '');
+assert.equal(helpers.docText_('Uraian'), 'Uraian');
 
 console.log('Document-generation empty-text safeguards passed.');
