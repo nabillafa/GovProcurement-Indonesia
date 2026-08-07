@@ -17,6 +17,12 @@ for (const required of [
   'appendSafeTableCell_(row, v)',
   'appendSafeTableCell_(totalRow, v)',
   "text === '' ? row.appendTableCell() : row.appendTableCell(text)",
+  'totalRow.getCell(1).merge()',
+  'cell.setVerticalAlignment(DocumentApp.VerticalAlignment.CENTER)',
+  'setCellHorizontalAlignment_(cell, horizontal)',
+  'DocumentApp.HorizontalAlignment.CENTER',
+  'DocumentApp.HorizontalAlignment.LEFT',
+  'DocumentApp.HorizontalAlignment.RIGHT',
 ]) {
   if (!source.includes(required)) {
     throw new Error(`Missing empty-text safeguard: ${required}`);
