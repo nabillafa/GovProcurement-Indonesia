@@ -18,3 +18,4 @@ jobs:
       - run: node scripts/check-syntax.mjs
       - run: node scripts/check-sensitive-data.mjs
       - run: node scripts/check-links.mjs
+      - run: node scripts/check-document-generation.mjs
