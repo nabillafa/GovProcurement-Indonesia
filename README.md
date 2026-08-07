@@ -72,6 +72,7 @@ contents first so the new source is not appended to an existing copy.
 - Cross-origin framing is not enabled.
 - Google Docs/Drive links are restricted to HTTPS allowlisted hosts in the browser UI.
 - Hyperlink labels are resolved to their real Google Docs/Drive targets before being returned to the browser.
+- Empty placeholders and blank table cells are handled without inserting invalid empty text elements into Google Docs.
 - Demo records use fictional names, codes, dates, and amounts.
 - `.gitignore` blocks common local credentials, exports, office documents, and deployment files.
 
@@ -83,6 +84,7 @@ Run before each commit:
 node scripts/check-syntax.mjs
 node scripts/check-sensitive-data.mjs
 node scripts/check-links.mjs
+node scripts/check-document-generation.mjs
 ```
 
 ## Working with ChatGPT/Codex
