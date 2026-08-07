@@ -13,8 +13,10 @@ The relevant attacker is a person who discovers the deployment URL but is not au
 
 - All real Google asset IDs and operational demo records were removed.
 - Organization-specific values are loaded from Script Properties.
-- Web endpoints require an authenticated user matching `ALLOWED_DOMAIN` or `ALLOWED_EMAILS`.
-- Missing access configuration fails closed.
+- The web app executes as Owner so users do not inherit spreadsheet or bound-script edit access.
+- A short-lived six-digit code is sent only to an active `DB_Pengguna` Gmail address.
+- The authenticated email is cached against `Session.getTemporaryActiveUserKey()` for a bounded session.
+- Server endpoints enforce role, per-package ownership, and per-account budget-import permission.
 - The code no longer enables cross-origin framing.
 - Browser links are restricted to HTTPS URLs on Google Docs and Google Drive hosts.
 - Rich-text and formula hyperlinks are resolved server-side, while label-only or non-Google values fail closed.
@@ -23,7 +25,7 @@ The relevant attacker is a person who discovers the deployment URL but is not au
 
 ## Residual operational requirements
 
-Security still depends on deployment and Drive configuration. Deployers must select **User accessing the web app**, restrict access to the intended account or Workspace organization, and review file-sharing permissions. The portfolio repository does not include operational spreadsheets or templates, so end-to-end production authorization was not dynamically tested.
+Security still depends on deployment and Drive configuration. Deployers must select **Execute as: Me** and **Who has access: Anyone with Google account**; application access then fails closed until Gmail OTP verification succeeds. Shared Drive membership, Owner/Admin accounts, mail quota, and generated-file permissions require operational review. The portfolio repository does not include operational spreadsheets or templates, so end-to-end Google authorization was not dynamically tested.
 
 ## Result
 
