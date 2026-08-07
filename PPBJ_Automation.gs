@@ -599,15 +599,38 @@ function insertDetailTable_(body, rows) {
       formatCurrency_(r[12]), formatCurrency_(r[13])].forEach(v => appendSafeTableCell_(row, v));
   });
   const totalRow = table.appendTableRow();
-  ['', 'TOTAL', '', '', '', formatCurrency_(rows.reduce((s, r) => s + Number(r[13] || 0), 0))]
+  ['TOTAL', '', '', '', '', formatCurrency_(rows.reduce((s, r) => s + Number(r[13] || 0), 0))]
     .forEach(v => appendSafeTableCell_(totalRow, v));
+  // Merge the first five columns so the TOTAL row follows the template.
+  // TableCell.merge() merges the active cell into its preceding sibling.
+  for (let i = 0; i < 4; i++) totalRow.getCell(1).merge();
+
   for (let i = 0; i < table.getNumRows(); i++) {
     const row = table.getRow(i);
     for (let c = 0; c < row.getNumCells(); c++) {
-      const cellText = row.getCell(c).editAsText();
+      const cell = row.getCell(c);
+      const cellText = cell.editAsText();
       cellText.setFontFamily('Arial').setFontSize(8);
       if (i === 0 || i === table.getNumRows() - 1) cellText.setBold(true);
+
+      // Vertically center every cell. Center the headers, utility columns,
+      // and TOTAL label; keep descriptions left-aligned and money right-aligned.
+      cell.setVerticalAlignment(DocumentApp.VerticalAlignment.CENTER);
+      const isHeader = i === 0;
+      const isTotal = i === table.getNumRows() - 1;
+      const horizontal = isHeader || (isTotal && c === 0) || (!isTotal && (c === 0 || c === 2 || c === 3))
+        ? DocumentApp.HorizontalAlignment.CENTER
+        : (!isTotal && c === 1 ? DocumentApp.HorizontalAlignment.LEFT : DocumentApp.HorizontalAlignment.RIGHT);
+      setCellHorizontalAlignment_(cell, horizontal);
     }
+  }
+}
+
+function setCellHorizontalAlignment_(cell, alignment) {
+  for (let i = 0; i < cell.getNumChildren(); i++) {
+    const child = cell.getChild(i);
+    if (child.getType() === DocumentApp.ElementType.PARAGRAPH) child.asParagraph().setAlignment(alignment);
+    if (child.getType() === DocumentApp.ElementType.LIST_ITEM) child.asListItem().setAlignment(alignment);
   }
 }
 
