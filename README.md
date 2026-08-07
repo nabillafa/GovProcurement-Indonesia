@@ -9,8 +9,11 @@ It was designed to show how a spreadsheet-based administrative process can be tr
 ## Highlights
 
 - Responsive dashboard for package, budget, status, vendor, and team summaries.
-- Guided package form for identity, values, dates, items, budget allocations, and letters.
+- Guided package form for identity, Indonesian dates, paste-from-Excel items, taxes, package costs, budget allocations, and letters.
 - Search over active budget lines.
+- Calendar-aware letter scheduling with weekends, holidays, joint leave, and approved bridge days.
+- Role-based users, one-time-code Gmail sign-in, per-user package ownership, and optional budget-import permission.
+- Excel budget import with sheet selection, preview, archival, and audit history.
 - Automated Google Docs and PDF generation with versioned Drive archives.
 - Indonesian rupiah and terbilang formatting.
 - Repeating detail-table headers in generated Google Docs.
@@ -21,10 +24,10 @@ It was designed to show how a spreadsheet-based administrative process can be tr
 
 ```mermaid
 flowchart LR
-    A[Apps Script Web App] --> B[Google Sheets]
-    A --> C[Google Docs Template]
-    C --> D[Versioned Docs and PDF]
-    D --> E[Google Drive Archive]
+    A[Gmail OTP] --> B[Owner-executed Web App]
+    B --> C[Protected Google Sheets]
+    B --> D[Google Docs Template]
+    D --> E[Shared Drive Docs and PDF]
 ```
 
 ## Repository files
@@ -48,14 +51,14 @@ flowchart LR
 | `ORGANIZATION_NAME` | Yes | `Example Organization` |
 | `ORGANIZATION_ADDRESS` | Yes | `Example address` |
 | `DIPA_REFERENCE` | Optional | `Budget reference` |
-| `ALLOWED_DOMAIN` | One access rule required | `example.go.id` |
-| `ALLOWED_EMAILS` | One access rule required | `admin@example.com,user@example.com` |
+| `OWNER_EMAIL` | Yes | `owner@example.com` |
 
-4. Deploy as a web app:
-   - **Execute as:** User accessing the web app.
-   - **Who has access:** only the intended account or Workspace organization.
-   - Do not deploy as anonymous/public when connected to operational data.
-5. Run `setupSystem()` once from the Apps Script editor, then refresh the spreadsheet.
+4. Enable the Advanced Google Service **Drive API**; the included manifest declares Drive v3.
+5. Deploy as a web app:
+   - **Execute as:** Me.
+   - **Who has access:** Anyone with Google account.
+   - Application access is still denied until the Gmail address passes the internal allowlist and one-time-code flow.
+6. Run `upgradeSystemV2()` once as Owner, then deploy a new version.
 
 ### Avoid duplicate global declarations
 
@@ -67,8 +70,10 @@ contents first so the new source is not appended to an existing copy.
 ## Privacy safeguards used in this portfolio version
 
 - Google asset IDs are read from Script Properties, never committed.
-- The web app denies access if no allowlist is configured.
-- Every callable data function checks the active user's identity.
+- The web app uses a short-lived one-time code sent only to an active allowlisted Gmail address.
+- The spreadsheet and bound Apps Script project are not shared with application users.
+- Server functions enforce roles and package ownership; Admin/Owner can see all packages.
+- Budget import is controlled per user and writes an audit history.
 - Cross-origin framing is not enabled.
 - Google Docs/Drive links are restricted to HTTPS allowlisted hosts in the browser UI.
 - Hyperlink labels are resolved to their real Google Docs/Drive targets before being returned to the browser.
@@ -85,6 +90,7 @@ node scripts/check-syntax.mjs
 node scripts/check-sensitive-data.mjs
 node scripts/check-links.mjs
 node scripts/check-document-generation.mjs
+node scripts/check-v2-features.mjs
 ```
 
 ## Working with ChatGPT/Codex
