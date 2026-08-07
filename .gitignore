@@ -1,0 +1,25 @@
+# Local Apps Script / clasp configuration
+.clasp.json
+.clasprc.json
+.env
+.env.*
+credentials*.json
+client_secret*.json
+service-account*.json
+
+# Exported operational files and office documents
+*.xlsx
+*.xls
+*.csv
+*.docx
+*.pdf
+*.zip
+exports/
+private/
+screenshots/
+
+# Local tooling
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
