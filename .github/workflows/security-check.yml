@@ -19,3 +19,4 @@ jobs:
       - run: node scripts/check-sensitive-data.mjs
       - run: node scripts/check-links.mjs
       - run: node scripts/check-document-generation.mjs
+      - run: node scripts/check-v2-features.mjs
