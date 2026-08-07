@@ -17,7 +17,9 @@ for (const required of [
   'appendSafeTableCell_(row, v)',
   'appendSafeTableCell_(totalRow, v)',
   "text === '' ? row.appendTableCell() : row.appendTableCell(text)",
-  'totalRow.getCell(1).merge()',
+  'mergeLeadingTableCells_(totalRow, 5)',
+  'for (let c = count - 1; c >= 1; c--) row.getCell(c).merge()',
+  '.setBold(i === 0)',
   'cell.setVerticalAlignment(DocumentApp.VerticalAlignment.CENTER)',
   'setCellHorizontalAlignment_(cell, horizontal)',
   'DocumentApp.HorizontalAlignment.CENTER',
@@ -36,7 +38,7 @@ const PropertiesService = {
 };
 const helpers = new Function(
   'PropertiesService',
-  `${source}\nreturn {docText_, appendSafeTableCell_};`,
+  `${source}\nreturn {docText_, appendSafeTableCell_, mergeLeadingTableCells_};`,
 )(PropertiesService);
 
 const calls = [];
@@ -56,4 +58,28 @@ assert.deepEqual(calls, [[], [], ['0'], ['TOTAL']]);
 assert.equal(helpers.docText_(undefined), '');
 assert.equal(helpers.docText_('Uraian'), 'Uraian');
 
-console.log('Document-generation empty-text safeguards passed.');
+// Model the Docs behavior where merged-over cells retain their indexes. A
+// right-to-left merge must leave the first cell spanning columns 1–5 while the
+// sixth (amount) cell remains independent.
+const cells = Array.from({length: 6}, (_, index) => ({index, span: 1}));
+const totalRow = {
+  getCell(index) {
+    const cell = cells[index];
+    return {
+      merge() {
+        const previous = cells[index - 1];
+        previous.span += cell.span;
+        cell.span = 0;
+        return previous;
+      },
+      getColSpan() {
+        return cell.span;
+      },
+    };
+  },
+};
+
+helpers.mergeLeadingTableCells_(totalRow, 5);
+assert.deepEqual(cells.map(cell => cell.span), [5, 0, 0, 0, 0, 1]);
+
+console.log('Document-generation formatting and merge safeguards passed.');
