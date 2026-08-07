@@ -576,7 +576,6 @@ function insertDetailTable_(body, rows) {
   if (!found) return;
   const text = found.getElement().asText();
   const paragraph = text.getParent().asParagraph();
-  paragraph.setText('');
   const previous = paragraph.getPreviousSibling();
   let table;
 
@@ -590,14 +589,18 @@ function insertDetailTable_(body, rows) {
     table = body.insertTable(index, [['No', 'Uraian/Spesifikasi', 'Volume', 'Satuan', 'Harga Satuan', 'Jumlah']]);
   }
 
+  // Remove the placeholder as an element. DocumentApp rejects setText('')
+  // because it attempts to insert an empty text element.
+  body.removeChild(paragraph);
+
   rows.forEach(r => {
     const row = table.appendTableRow();
-    [String(r[1]), String(r[2]) + (r[3] ? '\n' + r[3] : ''), String(r[4]), String(r[5]),
-      formatCurrency_(r[12]), formatCurrency_(r[13])].forEach(v => row.appendTableCell(v));
+    [docText_(r[1]), docText_(r[2]) + (r[3] ? '\n' + docText_(r[3]) : ''), docText_(r[4]), docText_(r[5]),
+      formatCurrency_(r[12]), formatCurrency_(r[13])].forEach(v => appendSafeTableCell_(row, v));
   });
   const totalRow = table.appendTableRow();
   ['', 'TOTAL', '', '', '', formatCurrency_(rows.reduce((s, r) => s + Number(r[13] || 0), 0))]
-    .forEach(v => totalRow.appendTableCell(v));
+    .forEach(v => appendSafeTableCell_(totalRow, v));
   for (let i = 0; i < table.getNumRows(); i++) {
     const row = table.getRow(i);
     for (let c = 0; c < row.getNumCells(); c++) {
@@ -606,6 +609,15 @@ function insertDetailTable_(body, rows) {
       if (i === 0 || i === table.getNumRows() - 1) cellText.setBold(true);
     }
   }
+}
+
+function docText_(value) {
+  return value == null ? '' : String(value);
+}
+
+function appendSafeTableCell_(row, value) {
+  const text = docText_(value);
+  return text === '' ? row.appendTableCell() : row.appendTableCell(text);
 }
 
 function letterNo_(letters, key) { return letters[key] ? letters[key].number || '' : ''; }
