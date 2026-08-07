@@ -601,17 +601,18 @@ function insertDetailTable_(body, rows) {
   const totalRow = table.appendTableRow();
   ['TOTAL', '', '', '', '', formatCurrency_(rows.reduce((s, r) => s + Number(r[13] || 0), 0))]
     .forEach(v => appendSafeTableCell_(totalRow, v));
-  // Merge the first five columns so the TOTAL row follows the template.
-  // TableCell.merge() merges the active cell into its preceding sibling.
-  for (let i = 0; i < 4; i++) totalRow.getCell(1).merge();
+  // Merge columns 1–5 from right to left. This works whether the runtime keeps
+  // covered-cell indexes or removes merged cells from the row immediately.
+  mergeLeadingTableCells_(totalRow, 5);
 
   for (let i = 0; i < table.getNumRows(); i++) {
     const row = table.getRow(i);
     for (let c = 0; c < row.getNumCells(); c++) {
       const cell = row.getCell(c);
       const cellText = cell.editAsText();
-      cellText.setFontFamily('Arial').setFontSize(8);
-      if (i === 0 || i === table.getNumRows() - 1) cellText.setBold(true);
+      // Appended rows can inherit the header style, so explicitly keep only
+      // the header bold and reset every detail/TOTAL cell to regular weight.
+      cellText.setFontFamily('Arial').setFontSize(8).setBold(i === 0);
 
       // Vertically center every cell. Center the headers, utility columns,
       // and TOTAL label; keep descriptions left-aligned and money right-aligned.
@@ -624,6 +625,17 @@ function insertDetailTable_(body, rows) {
       setCellHorizontalAlignment_(cell, horizontal);
     }
   }
+}
+
+function mergeLeadingTableCells_(row, count) {
+  if (count < 2) return row.getCell(0);
+  for (let c = count - 1; c >= 1; c--) row.getCell(c).merge();
+  const merged = row.getCell(0);
+  if (typeof merged.getColSpan === 'function') {
+    const span = merged.getColSpan();
+    if (span > 0 && span !== count) throw new Error('The TOTAL row could not be merged across ' + count + ' columns.');
+  }
+  return merged;
 }
 
 function setCellHorizontalAlignment_(cell, alignment) {
