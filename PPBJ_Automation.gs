@@ -1,22 +1,20 @@
 /**
- * ProcureFlow — sistem administrasi pengadaan berbasis Google Workspace.
- * Versi portofolio: tidak memuat data, identitas, atau ID aset organisasi.
+ * Sistem Administrasi Pengadaan Example Public Organization
  * Dipasang satu kali melalui Extensions > Apps Script.
  */
 
 const CFG = Object.freeze({
   TZ: 'Asia/Jakarta',
   SPREADSHEET_ID: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '',
-  ORGANIZATION_NAME: PropertiesService.getScriptProperties().getProperty('ORGANIZATION_NAME') || 'Nama Organisasi',
-  ORGANIZATION_ADDRESS: PropertiesService.getScriptProperties().getProperty('ORGANIZATION_ADDRESS') || 'Alamat Organisasi',
-  DIPA_REFERENCE: PropertiesService.getScriptProperties().getProperty('DIPA_REFERENCE') || 'Referensi anggaran organisasi',
   SHEETS: {
     HOME: 'Beranda', INPUT: 'Input_Paket', DETAIL: 'Detail_Barang', CALC: 'Kalkulator_Harga',
     SEARCH: 'Cari_POK', ALLOCATION: 'Alokasi_Anggaran', UPDATE: 'Update_POK', DOCS: 'Dokumen',
     ARCHIVE_DOCS: 'Arsip_Dokumen', DB_PACKAGE: 'DB_Paket', DB_DETAIL: 'DB_Detail',
     DB_LETTER: 'DB_Surat', DB_POK: 'DB_POK', ARCHIVE_POK: 'Arsip_POK', HISTORY_POK: 'Riwayat_POK',
     DB_VENDOR: 'DB_Vendor', DB_TEAM: 'DB_Tim', DB_OFFICER: 'DB_Pejabat', DB_SEARCH: 'DB_Search',
-    CALC_DASH: 'Calc_Dashboard', TMP_POK: 'TMP_POK'
+    CALC_DASH: 'Calc_Dashboard', TMP_POK: 'TMP_POK',
+    DB_USER: 'DB_Pengguna', DB_PACKAGE_EXT: 'DB_Paket_Ext', DB_CALENDAR: 'DB_Kalender_Kerja',
+    IMPORT_LOG: 'Riwayat_Impor_Web'
   }
 });
 
@@ -46,16 +44,104 @@ function onOpen() {
 function setupSystem() {
   const ss = SpreadsheetApp.getActive();
   ss.setSpreadsheetTimeZone(CFG.TZ);
+  upgradeSystemV2();
   segarkanDashboard();
   onOpen();
   ss.toast('Sistem aktif. Menu PPBJ sudah dipasang.', 'PPBJ', 6);
 }
 
+/**
+ * Migrasi aman untuk fitur multi-pengguna, kalender kerja, kalkulator biaya,
+ * dan impor POK dari web. Tidak menghapus atau menimpa data paket lama.
+ * Jalankan satu kali sebagai pemilik setelah mengganti kode.
+ */
+function upgradeSystemV2() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(CFG.SPREADSHEET_ID);
+  ensureSheetWithHeaders_(ss, CFG.SHEETS.DB_USER,
+    ['Email','Nama','Peran','Aktif','Boleh Update Anggaran','Ditambahkan Pada','Ditambahkan Oleh']);
+  ensureSheetWithHeaders_(ss, CFG.SHEETS.DB_PACKAGE_EXT,
+    ['ID Paket','Email Pemilik','Tanggal Penetapan HPS','Tanggal Barang Sampai','Biaya JSON','Diperbarui Pada']);
+  ensureSheetWithHeaders_(ss, CFG.SHEETS.DB_CALENDAR,
+    ['Tanggal','Keterangan','Jenis','Aktif','Sumber','Diperbarui Oleh','Diperbarui Pada']);
+  ensureSheetWithHeaders_(ss, CFG.SHEETS.IMPORT_LOG,
+    ['Waktu','Email','Nama File','Sheet Sumber','Revisi','Jumlah Rincian','Total Pagu','URL Arsip','Status']);
+  seedOwnerUser_();
+  seedCalendar2026_();
+  SpreadsheetApp.flush();
+  return 'Migrasi V2 selesai tanpa mengubah paket dan arsip lama.';
+}
+
+function ensureSheetWithHeaders_(ss, name, headers) {
+  let s = ss.getSheetByName(name);
+  if (!s) s = ss.insertSheet(name);
+  const current = s.getLastColumn() ? s.getRange(1, 1, 1, Math.max(s.getLastColumn(), headers.length)).getDisplayValues()[0] : [];
+  headers.forEach((h, i) => { if (current[i] !== h) s.getRange(1, i + 1).setValue(h); });
+  s.setFrozenRows(1);
+  return s;
+}
+
+function seedOwnerUser_() {
+  const s = sh_(CFG.SHEETS.DB_USER);
+  const ownerEmail = 'owner@example.com';
+  if (!findRow_(s, 1, ownerEmail)) {
+    s.getRange(firstBlankRow_(s, 1, 2), 1, 1, 7).setValues([[
+      ownerEmail, 'Example Owner', 'Owner', 'Ya', 'Ya', new Date(), ownerEmail
+    ]]);
+  }
+}
+
+function seedCalendar2026_() {
+  const s = sh_(CFG.SHEETS.DB_CALENDAR);
+  const official = [
+    ['2026-01-01','Tahun Baru 2026 Masehi','Libur Nasional'],
+    ['2026-01-16','Isra Mikraj Nabi Muhammad SAW','Libur Nasional'],
+    ['2026-02-17','Tahun Baru Imlek 2577 Kongzili','Libur Nasional'],
+    ['2026-03-19','Hari Suci Nyepi','Libur Nasional'],
+    ['2026-03-21','Idulfitri 1447 H','Libur Nasional'],
+    ['2026-03-22','Idulfitri 1447 H','Libur Nasional'],
+    ['2026-04-03','Wafat Yesus Kristus','Libur Nasional'],
+    ['2026-04-05','Kebangkitan Yesus Kristus','Libur Nasional'],
+    ['2026-05-01','Hari Buruh Internasional','Libur Nasional'],
+    ['2026-05-14','Kenaikan Yesus Kristus','Libur Nasional'],
+    ['2026-05-27','Iduladha 1447 H','Libur Nasional'],
+    ['2026-05-31','Waisak 2570 BE','Libur Nasional'],
+    ['2026-06-01','Hari Lahir Pancasila','Libur Nasional'],
+    ['2026-06-16','1 Muharam 1448 H','Libur Nasional'],
+    ['2026-08-17','Proklamasi Kemerdekaan','Libur Nasional'],
+    ['2026-08-25','Maulid Nabi Muhammad SAW','Libur Nasional'],
+    ['2026-12-25','Kelahiran Yesus Kristus','Libur Nasional'],
+    ['2026-02-16','Cuti bersama Imlek','Cuti Bersama'],
+    ['2026-03-18','Cuti bersama Nyepi','Cuti Bersama'],
+    ['2026-03-20','Cuti bersama Idulfitri','Cuti Bersama'],
+    ['2026-03-23','Cuti bersama Idulfitri','Cuti Bersama'],
+    ['2026-03-24','Cuti bersama Idulfitri','Cuti Bersama'],
+    ['2026-05-15','Cuti bersama Kenaikan Yesus Kristus','Cuti Bersama'],
+    ['2026-05-28','Cuti bersama Iduladha','Cuti Bersama'],
+    ['2026-12-24','Cuti bersama Natal','Cuti Bersama']
+  ];
+  const bridges = [
+    ['2026-01-02','Usulan hari kejepit setelah Tahun Baru','Hari Kejepit'],
+    ['2026-06-15','Usulan hari kejepit sebelum 1 Muharam','Hari Kejepit'],
+    ['2026-08-24','Usulan hari kejepit sebelum Maulid Nabi','Hari Kejepit']
+  ];
+  const source = 'SKB 3 Menteri Tahun 2026';
+  official.forEach(r => upsertCalendarSeed_(s, r[0], r[1], r[2], 'Ya', source));
+  bridges.forEach(r => upsertCalendarSeed_(s, r[0], r[1], r[2], 'Tidak', 'Usulan sistem; perlu konfirmasi Owner/Admin'));
+}
+
+function upsertCalendarSeed_(sheet, iso, note, type, active, source) {
+  const date = webParseDate_(iso);
+  const key = Utilities.formatDate(date, CFG.TZ, 'yyyy-MM-dd');
+  const last = Math.max(sheet.getLastRow(), 2);
+  const vals = sheet.getRange(2, 1, last - 1, 1).getValues();
+  const exists = vals.some(r => validDate_(r[0]) && Utilities.formatDate(new Date(r[0]), CFG.TZ, 'yyyy-MM-dd') === key);
+  if (!exists) sheet.getRange(firstBlankRow_(sheet, 1, 2), 1, 1, 7).setValues([[
+    date, note, type, active, source, 'Sistem', new Date()
+  ]]);
+}
+
 function sh_(name) {
   const active = SpreadsheetApp.getActiveSpreadsheet();
-  if (!active && !CFG.SPREADSHEET_ID) {
-    throw new Error('SPREADSHEET_ID belum diatur pada Script Properties.');
-  }
   const book = active || SpreadsheetApp.openById(CFG.SPREADSHEET_ID);
   const sheet = book.getSheetByName(name);
   if (!sheet) throw new Error('Sheet tidak ditemukan: ' + name);
@@ -510,24 +596,26 @@ function collectMergeData_(id) {
   sl.getRange(2, 1, Math.max(sl.getLastRow() - 1, 1), 6).getValues().forEach(r => { if (String(r[0]) === id) letters[String(r[1])] = {date:r[2], number:r[3]}; });
   const detailSheet = sh_(CFG.SHEETS.DB_DETAIL);
   const details = detailSheet.getRange(2, 1, Math.max(detailSheet.getLastRow() - 1, 1), 15).getValues().filter(r => String(r[0]) === id);
+  const ext = getPackageExt_(id);
+  const costs = ext.costs || {};
   const hps = Number(p['Nilai HPS'] || 0), nego = Number(p['Nilai Kontrak'] || 0);
   const po = p['Tanggal PO'], bast = p['Tanggal BAST'];
   const map = {
     ID_Paket: id, NO: p['Nomor Urut'], Nama_Kegiatan_Pengadaan: p['Nama Pengadaan'],
     NAMA_KEGIATAN_PENGADAAN: p['Nama Pengadaan'], Jenis_Pekerjaan: 'Barang/Jasa Lainnya',
     TANGGAL_PEMBUATAN_DOKUMEN: formatDate_(p['Tanggal Permintaan']), Nomor_Form: String(p['Nomor Urut']).padStart(3, '0'),
-    Tanggal_Form: formatDate_(p['Tanggal Permintaan']), Kepala_Unit_Eselon_II: 'Kepala ' + CFG.ORGANIZATION_NAME,
-    Sub_DirektoratBagian: p['Tim'], Tahun_Anggaran: p['Tahun'], DIPA: CFG.DIPA_REFERENCE,
-    Program: '(' + p['Program'] + ') Program Organisasi',
-    Kode_Kegiatan: '(' + p['Kegiatan'] + ') Kegiatan Organisasi', Output: '(' + p['Output'] + ') Output Kegiatan',
+    Tanggal_Form: formatDate_(p['Tanggal Permintaan']), Kepala_Unit_Eselon_II: 'Head of Example Public Organization',
+    Sub_DirektoratBagian: p['Tim'], Tahun_Anggaran: p['Tahun'], DIPA: 'Example budget reference',
+    Program: '(' + p['Program'] + ') Program Penyediaan dan Pelayanan Informasi Statistik',
+    Kode_Kegiatan: '(' + p['Kegiatan'] + ') Penyediaan dan Pengembangan Statistik', Output: '(' + p['Output'] + ') Output Kegiatan',
     Komponen: '(' + p['Komponen'] + ') Komponen', Akun: '(' + p['Akun'] + ') Belanja', Mata_Anggaran: p['MAK Utama'],
     Nilai_Anggaran_yang_Akan_Digunakan_Rp: formatNumber_(p['Nilai FP']), Nilai_Pagu_Anggaran_Rp: formatNumber_(p['Nilai FP']),
     Nama_PPK: p['PPK'], NIP_PPK: p['NIP PPK'], Label_PPK: 'Pejabat Pembuat Komitmen', Nama_Pejabat_Pengadaan: p['Pejabat Pengadaan'],
-    Label_Pejabat_Pengadaan: 'Pejabat Pengadaan', NIP_Pejabat: p['NIP Pejabat'], Alamat: CFG.ORGANIZATION_ADDRESS,
+    Label_Pejabat_Pengadaan: 'Pejabat Pengadaan', NIP_Pejabat: p['NIP Pejabat'], Alamat: 'Example Public Organization, Example Office Address',
     Nilai_HPS: formatCurrency_(hps), Nilai_HPS_Terbilang: titleCase_(terbilang_(hps)) + ' Rupiah', Nilai_Penawaran: formatNumber_(p['Nilai Penawaran']),
     Nilai_Nego: formatCurrency_(nego), Nilai_Terbilang_Nego: titleCase_(terbilang_(nego)) + ' Rupiah',
     Nama_Usaha: p['Penyedia'], Nama_Penyedia: vendor['Nama Penanggung Jawab'] || p['Penyedia'], Alamat_Penyedia: vendor['Alamat'] || '',
-    Kota_Penyedia: vendor['Kota'] || '', Label_Pimpinan_Penyedia: vendor['Jabatan'] || 'Pimpinan', Nama_Pimpinan_Penyedia: vendor['Nama Penanggung Jawab'] || '',
+    Kota_Penyedia: vendor['Kota'] || 'Example City', Label_Pimpinan_Penyedia: vendor['Jabatan'] || 'Pimpinan', Nama_Pimpinan_Penyedia: vendor['Nama Penanggung Jawab'] || '',
     Nama_Bank: vendor['Bank'] || '', Nomor_Rekening: vendor['No. Rekening'] || '', Atas_Nama_Rekening: vendor['a.n. Rekening'] || '',
     SM_penandatangan_BAPP: team['Ketua Tim'] || p['Ketua Tim'], Jabatan_SM_Penandatangan_BAPP: team['Jabatan'] || '', NIP_SM_Penandatangan_BAPP: team['NIP'] || p['NIP Ketua Tim'],
     Nama_PjPHP: p['PjPHP'], NIP_PjPHP: p['NIP PjPHP'], Label_PjPHP: 'Pejabat Pemeriksa/Penerima Hasil Pekerjaan',
@@ -540,7 +628,7 @@ function collectMergeData_(id) {
     Nomor_BA_Pemeriksaan_Administrasi: letterNo_(letters, 'Pemeriksaan Administrasi'), Tanggal_BA_Pemeriksaan_Administrasi: formatDate_(letterDate_(letters, 'Pemeriksaan Administrasi')),
     Nomor_BAP: letterNo_(letters, 'Pembayaran'), Tanggal_BAP: formatDate_(letterDate_(letters, 'Pembayaran')),
     Nomor_Kuitansi: letterNo_(letters, 'Kuitansi'), Tanggal_Kuitansi: formatDate_(letterDate_(letters, 'Kuitansi')),
-    Tanggal_Invoice: formatDate_(bast), Nomor_Invoice: '', Nomor_Surat_Penawaran: '', Tanggal_Surat_Penawaran: formatDate_(po), Nomor_BA_Nego: '',
+    Tanggal_Invoice: formatDate_(letterDate_(letters, 'Invoice')), Nomor_Invoice: letterNo_(letters, 'Invoice'), Nomor_Surat_Penawaran: '', Tanggal_Surat_Penawaran: formatDate_(po), Nomor_BA_Nego: '',
     Tanggal_Penetapan_Spesifikasi_Teknis: formatDate_(po), Tgl_SK_PPK: '', No_SK_PPK: '', Nomor_SK_PjPHP: ''
   };
   addDateFields_(map, 'HPS', letterDate_(letters, 'Penetapan HPS'));
@@ -555,7 +643,25 @@ function collectMergeData_(id) {
   map.Tanggal_Terbilang_BA_Pemeriksaan_Adminis = map.Tanggal_Terbilang_BA_Pemeriksaan_Administrasi || '';
   map.Tanggal_BAP_Terbilang = map.Tanggal_Terbilang_BAP || '';
   map.Tanggal_Kuitansi_Terbilang = dateWords_(letterDate_(letters, 'Kuitansi'));
-  return {map: map, details: details};
+  const documentDetails = details.slice();
+  appendVirtualDetail_(documentDetails, 'Biaya transportasi/ongkir', Number(costs.shipping || 0));
+  appendVirtualDetail_(documentDetails, 'Biaya administrasi lain', Number(costs.administration || 0));
+  const detailTotal = documentDetails.reduce((sum, r) => sum + Number(r[13] || 0), 0);
+  appendVirtualDetail_(documentDetails, 'Penyesuaian pembulatan/perhitungan kontrak', nego - detailTotal);
+  return {map: map, details: documentDetails};
+}
+
+function appendVirtualDetail_(rows, description, amount) {
+  amount = Math.round(Number(amount || 0));
+  if (!amount) return;
+  const r = Array(15).fill('');
+  r[1] = rows.length + 1;
+  r[2] = description;
+  r[4] = 1;
+  r[5] = 'paket';
+  r[12] = amount;
+  r[13] = amount;
+  rows.push(r);
 }
 
 function addDateFields_(map, prefix, date) {
@@ -589,8 +695,8 @@ function insertDetailTable_(body, rows) {
     table = body.insertTable(index, [['No', 'Uraian/Spesifikasi', 'Volume', 'Satuan', 'Harga Satuan', 'Jumlah']]);
   }
 
-  // Remove the placeholder as an element. DocumentApp rejects setText('')
-  // because it attempts to insert an empty text element.
+  // Hapus paragraf placeholder sebagai elemen. DocumentApp menolak setText('')
+  // karena tindakan tersebut mencoba menyisipkan elemen teks kosong.
   body.removeChild(paragraph);
 
   rows.forEach(r => {
@@ -601,8 +707,9 @@ function insertDetailTable_(body, rows) {
   const totalRow = table.appendTableRow();
   ['TOTAL', '', '', '', '', formatCurrency_(rows.reduce((s, r) => s + Number(r[13] || 0), 0))]
     .forEach(v => appendSafeTableCell_(totalRow, v));
-  // Merge columns 1–5 from right to left. This works whether the runtime keeps
-  // covered-cell indexes or removes merged cells from the row immediately.
+  // Satukan kolom 1–5. Penggabungan dilakukan dari kanan ke kiri agar setiap
+  // sel asli masuk ke sel sebelumnya, baik runtime mempertahankan indeks sel
+  // yang sudah tertutup maupun langsung menghapusnya dari baris.
   mergeLeadingTableCells_(totalRow, 5);
 
   for (let i = 0; i < table.getNumRows(); i++) {
@@ -610,12 +717,12 @@ function insertDetailTable_(body, rows) {
     for (let c = 0; c < row.getNumCells(); c++) {
       const cell = row.getCell(c);
       const cellText = cell.editAsText();
-      // Appended rows can inherit the header style, so explicitly keep only
-      // the header bold and reset every detail/TOTAL cell to regular weight.
+      // Baris baru mewarisi gaya baris header pada sebagian template. Karena
+      // itu status bold harus selalu ditetapkan eksplisit: hanya header tebal.
       cellText.setFontFamily('Arial').setFontSize(8).setBold(i === 0);
 
-      // Vertically center every cell. Center the headers, utility columns,
-      // and TOTAL label; keep descriptions left-aligned and money right-aligned.
+      // Seluruh isi rata tengah secara vertikal. Judul kolom rata tengah
+      // horizontal; uraian rata kiri; angka dan nilai uang mengikuti contoh.
       cell.setVerticalAlignment(DocumentApp.VerticalAlignment.CENTER);
       const isHeader = i === 0;
       const isTotal = i === table.getNumRows() - 1;
@@ -633,7 +740,7 @@ function mergeLeadingTableCells_(row, count) {
   const merged = row.getCell(0);
   if (typeof merged.getColSpan === 'function') {
     const span = merged.getColSpan();
-    if (span > 0 && span !== count) throw new Error('The TOTAL row could not be merged across ' + count + ' columns.');
+    if (span > 0 && span !== count) throw new Error('Baris TOTAL gagal digabung menjadi ' + count + ' kolom.');
   }
   return merged;
 }
@@ -663,10 +770,16 @@ function escapeRegex_(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&
 function slug_(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90); }
 function searchTerms_() {
   const base = Array.prototype.slice.call(arguments).join(' ').toLowerCase();
-  return base.trim();
+  const aliases = [];
+  if (/example-survey[.\s-]*core/i.test(base)) aliases.push('survey core');
+  return (base + ' ' + aliases.join(' ')).trim();
 }
 function validDate_(d) { return d && !isNaN(new Date(d).getTime()); }
-function formatDate_(d) { return validDate_(d) ? Utilities.formatDate(new Date(d), CFG.TZ, 'd MMMM yyyy') : ''; }
+function formatDate_(d) {
+  if (!validDate_(d)) return '';
+  const x = new Date(d);
+  return x.getDate() + ' ' + monthName_(x.getMonth()) + ' ' + x.getFullYear();
+}
 function formatNumber_(n) { return String(Math.round(Number(n || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
 function formatCurrency_(n) { return 'Rp' + formatNumber_(n) + ',-'; }
 function dayName_(i) { return ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][i] || ''; }
